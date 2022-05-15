@@ -4,6 +4,8 @@ package main
 
 import (
 	"flag"
+	"image"
+	"image/gif"
 	"image/jpeg"
 	"image/png"
 	"log"
@@ -12,28 +14,30 @@ import (
 )
 
 var (
-	flagDir     = flag.String("directory", "img", "ディレクトリ")
-	flagImgType = flag.String("image type", "png", "画像タイプ")
+	flagDir              = flag.String("directory", "img", "ディレクトリ")
+	flagOriginalImgType  = flag.String("original image type", "jpg", "変換前画像タイプ")
+	flagConvertedImgType = flag.String("converted image type", "png", "変換後画像タイプ")
 )
 
 func main() {
-	//引数を取得する
 	flag.Parse()
 	args := flag.Args()
+
 	switch {
 	case len(args) == 2:
-		*flagDir = args[0]
-		*flagImgType = args[1]
+		*flagOriginalImgType = args[1]
+	case len(args) == 3:
+		*flagConvertedImgType = args[2]
 	default:
 		*flagDir = args[0]
 	}
 
-	if err := convertFile(*flagDir, *flagImgType); err != nil {
+	if err := convertImg(*flagDir, *flagOriginalImgType, *flagConvertedImgType); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func convertFile(d string, t string) error {
+func convertImg(d string, ft string, fd string) error {
 	//ディレクトリを指定する
 	files, err := os.ReadDir(d)
 	if err != nil {
@@ -42,31 +46,69 @@ func convertFile(d string, t string) error {
 
 	//ディレクトリ以下は再帰的に処理する
 	for _, file := range files {
-		//指定したディレクトリ以下のJPGファイルをPNGに変換（デフォルト）
 		f, err := os.Open(d + "/" + file.Name())
-		if err != nil {
-			log.Fatal(err)
-		}
-		img, err := jpeg.Decode(f)
 		if err != nil {
 			log.Fatal(err)
 		}
 		name := (strings.Split(file.Name(), "."))[0]
 
-		fso, err := os.Create("./img/" + name + ".png")
-		if err != nil {
-			log.Fatal(err)
+		var img image.Image
+
+		//指定したディレクトリ以下のJPGファイルをPNGに変換（デフォルト）
+		//変換前と変換後の画像形式を指定できる（オプション）
+		switch ft {
+		case "png":
+			img, err = png.Decode(f)
+			if err != nil {
+				log.Fatal(err)
+			}
+		case "jpeg, jpg":
+			img, err = jpeg.Decode(f)
+			if err != nil {
+				log.Fatal(err)
+			}
+		case "gif":
+			img, err = gif.Decode(f)
+			if err != nil {
+				log.Fatal(err)
+			}
+		default:
+			img, err = jpeg.Decode(f)
+			if err != nil {
+				log.Fatal(err)
+			}
 		}
-		png.Encode(fso, img)
-		f.Close()
+
+		switch fd {
+		case "png":
+			fso, err := os.Create("./img/" + name + ".png")
+			if err != nil {
+				log.Fatal(err)
+			}
+			png.Encode(fso, img)
+			f.Close()
+		case "jpeg, jpg":
+			fso, err := os.Create("./img/" + name + ".jpg")
+			if err != nil {
+				log.Fatal(err)
+			}
+			jpeg.Encode(fso, img, nil)
+			f.Close()
+		case "gif":
+			fso, err := os.Create("./img/" + name + ".jpg")
+			if err != nil {
+				log.Fatal(err)
+			}
+			gif.Encode(fso, img, nil)
+			f.Close()
+		default:
+			fso, err := os.Create("./img/" + name + ".png")
+			if err != nil {
+				log.Fatal(err)
+			}
+			png.Encode(fso, img)
+			f.Close()
+		}
 	}
-
-	// //変換前と変換後の画像形式を指定できる（オプション）
-	// fileType := t
-
-	// sc := bufio.NewScanner(f)
-	// for sc.Scan() {
-	// 	fmt.Println(sc.Text())
-	// }
 	return err
 }
